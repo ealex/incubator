@@ -9,8 +9,14 @@
 #define TFT_RST        8 // Or set to -1 and connect to Arduino RESET pin
 #define TFT_DC         9
 Adafruit_ST7789 tft = Adafruit_ST7789(TFT_CS, TFT_DC, TFT_RST);
-#define UI_TASK_TIMER (100) // run ui task each 100ms
-void uiDisplayCallback();
+#define UI_TASK_CURRENT_TEMP (500)
+void uiDisplayCurrentTempCallback();
+#define UI_TASK_CURRENT_HUMIDITY (500)
+void uiDisplayCurrentHumidityCallback();
+#define UI_TASK_CURRENT_SETPOINT (100)
+void uiDisplayCurrentSetPointCallback();
+#define UI_TASK_DEBUG_DATA        (1000)
+void uiDisplayDebugDataCallback();
 
 
 //DHT22
@@ -55,29 +61,37 @@ void motorControlCallback();
 // interface encoder button
 // https://github.com/Stutchbury/EncoderButton
 #include <EncoderButton.h>
-#define ENCODER_A   (A2)
-#define ENCODER_B   (A3)
-#define ENCODER_BUT (A4)
+#define ENCODER_A   (A3)
+#define ENCODER_B   (A4)
+#define ENCODER_BUT (A5)
 EncoderButton uiButton(ENCODER_A, ENCODER_B, ENCODER_BUT);
-void uiControlTask();
 void onUiButtonHandler(EncoderButton& eb);
+void onUiButtonLongPress(EncoderButton& eb);
+void uiEncoderCallback();
+
+
+// user interface globals
 volatile boolean uiHeaterEnabled=false;
 volatile boolean uiHeaterBlink=false;
 volatile boolean uiHeaterOverTemp=false;
 volatile boolean uiHeaterUnderTemp=false;
 volatile boolean uiHeaterError = false;
-#define HEATER_DEBUG
+//#define HEATER_DEBUG
 
 
 // task manager
 #include <TaskScheduler.h>
 Scheduler runner;
-Task uiTask(UI_TASK_TIMER, TASK_FOREVER, &uiDisplayCallback, &runner, true);  //user interface handling task
+Task buttonTask(10, TASK_FOREVER, &uiEncoderCallback, &runner, true);
+
+Task uiCurrentTempTask(UI_TASK_CURRENT_TEMP, TASK_FOREVER, &uiDisplayCurrentTempCallback, &runner, true);  //user interface handling task
+Task uiCurrentHumidityTask(UI_TASK_CURRENT_HUMIDITY, TASK_FOREVER, &uiDisplayCurrentHumidityCallback, &runner, true);  //user interface handling task
+Task uiCurrentSetPointTask(UI_TASK_CURRENT_SETPOINT, TASK_FOREVER, &uiDisplayCurrentSetPointCallback, &runner, true);  //user interface handling task
+Task uiDisplayDebugTask(UI_TASK_DEBUG_DATA, TASK_FOREVER, &uiDisplayDebugDataCallback, &runner, true);  //user interface handling task
+
 Task sensorTask(SENSOR_TASK_TIMER, TASK_FOREVER, &sensorReadCallback, &runner, true); // read sensors
 Task controlTask(CONTROL_TASK_TIMER, TASK_FOREVER, &tempControlCallback, &runner, true); // control heaters and alarms
 Task motorTask(MOTOR_TASK_TIMER, TASK_FOREVER, &motorControlCallback, &runner, true); // control egg movement motor
-
-
 
 
 //************************* CODE STARTS HERE *********************
@@ -101,12 +115,17 @@ void setup() {
 
   // configure encode button
   uiButton.setEncoderHandler(onUiButtonHandler);
+  uiButton.setLongPressHandler(onUiButtonLongPress, false);
+  uiButton.enable();
+  
 
   // start the display
   // tft.setSPISpeed(1000);
   tft.init(240, 240,SPI_MODE2);
   tft.setRotation(2);
   tft.fillScreen(ST77XX_BLACK);
+  tft.drawLine(0, 110, 239, 110, ST77XX_MAGENTA);
+
 
   // start task sched.
   runner.startNow();
@@ -115,15 +134,25 @@ void setup() {
 
 
 void onUiButtonHandler(EncoderButton& eb) {
-  
+  Serial.print("eb1 incremented by: ");
+  Serial.println(eb.increment());
+  Serial.print("eb1 position is: ");
+  Serial.println(eb.position());
 }
 
-void loop() {
-  // encoder handler
-  uiButton.update();
+void onUiButtonLongPress(EncoderButton& eb) {
+  Serial.print("button1 longPressCount: ");
+  Serial.println(eb.longPressCount());
+}
 
+
+void loop() {
   // task sched 
   runner.execute();
+}
+
+void uiEncoderCallback() {
+  uiButton.update();
 }
 
 
@@ -165,15 +194,7 @@ void tempControlCallback() {
   if(true==uiHeaterError) {
     digitalWrite(HEATER_1,LOW);
   }
-  uiHeaterEnabled = digitalRead(HEATER_1)?true:false;
-
-  // blink the heater symbol
-  if(uiHeaterEnabled) {
-    uiHeaterBlink = (uiHeaterBlink)?false:true;
-  } else {
-    uiHeaterBlink = false;
-  }
-  
+  uiHeaterEnabled = digitalRead(HEATER_1)?true:false;  
   
 #ifdef HEATER_DEBUG
   Serial.print("Temp:");  
@@ -190,11 +211,12 @@ void motorControlCallback() {
 }
 
 void uiDisplayCallback() {
-  displayMeasuredData();
+  //displayMeasuredData();
+  //displayInterfaceData();
+  //displayDebugData();
 }
 
-
-void displayMeasuredData() {
+void uiDisplayCurrentTempCallback() {
   uint16_t textColor;
   uint16_t textBackGround;
   textBackGround= ST77XX_BLACK;
@@ -210,12 +232,6 @@ void displayMeasuredData() {
     }
   }
 
-  tft.drawLine(0,0,239,0,textBackGround);
-  tft.drawLine(0,1,239,1,textBackGround);
-  tft.drawLine(0,2,239,2,textBackGround);
-  tft.drawLine(0,3,239,3,textBackGround);
-  tft.drawLine(0,4,239,4,textBackGround);
-  tft.drawLine(0,5,239,5,textBackGround);
   tft.setCursor(20, 5);
   tft.setTextColor(textColor, textBackGround);
   tft.setTextSize(6);
@@ -226,15 +242,33 @@ void displayMeasuredData() {
   }
   tft.print(char(0xF7));
   tft.println("C");
+}
+
+
+void uiDisplayCurrentHumidityCallback() {
+  uint16_t textColor;
+  uint16_t textBackGround;
+  textBackGround= ST77XX_BLACK;
+  if(uiHeaterError) {
+    textColor = ST77XX_RED;
+  } else {
+    if (uiHeaterOverTemp) {
+      textColor = ST77XX_YELLOW;
+    } else if (uiHeaterUnderTemp) {
+      textColor = ST77XX_BLUE;
+    } else {
+      textColor = ST77XX_GREEN;      
+    }
+  }
   // display humidity 
-  tft.setCursor(20, tft.getCursorY());
+  tft.setCursor(20, 60);
   if(isnan(env_humidity)) {
     tft.print("--.-");
   } else {
     tft.print(env_humidity,1);
   }
   tft.print("%");
-  if(uiHeaterBlink) {
+  if(uiHeaterEnabled) {
     tft.println(char(0x07));
   } else {
     if(heater_loop_heartbeat) {
@@ -242,12 +276,12 @@ void displayMeasuredData() {
     } else {
       tft.println(" ");
     }
-  }
-  tft.drawLine(0, tft.getCursorY()+10, 239, tft.getCursorY()+10, ST77XX_MAGENTA);
+  }  
+}
 
-
+void uiDisplayCurrentSetPointCallback() {
   // and now display the set temperature
-  tft.setCursor(10, 120);
+  tft.setCursor(10, 125);
   tft.setTextColor(ST77XX_WHITE, ST77XX_BLACK);
   tft.setTextSize(3);
   tft.print("TEMP. DORITA ");
@@ -257,11 +291,13 @@ void displayMeasuredData() {
   tft.print(tempSetPoint,1);
   tft.print(char(0xF7));
   tft.println("C ");
+}
 
+void uiDisplayDebugDataCallback() {
   // display some debug data
-  tft.setCursor(0, 220);
+  tft.setCursor(0, 205);
   tft.setTextColor(ST77XX_GREEN, ST77XX_BLACK);
-  tft.setTextSize(2);
+  tft.setTextSize(1);
   tft.print("Aux: ");
   if(isnan(heater_temperature)) {
     tft.print("--.-");
@@ -276,4 +312,6 @@ void displayMeasuredData() {
     tft.print(heater_humidity,1);
   }
   tft.print("%  ");
+  tft.println("");
+  tft.println("debug line 2");
 }
