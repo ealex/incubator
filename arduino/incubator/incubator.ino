@@ -46,7 +46,7 @@ void sensorReadCallback();
 #define HEATER_MAX_TEMP  ((float)50)
 #define LOW_TEMP_ALARM_LIMIT ((float)
 volatile float tempSetPoint=37.5;
-#define CONTROL_TASK_TIMER  (500)  //it's a slow process, so no hurry
+#define CONTROL_TASK_TIMER  (1000)  //it's a slow process, so no hurry
 void tempControlCallback();
 
 
@@ -59,14 +59,10 @@ void motorControlCallback();
 
 
 // interface encoder button
-// https://github.com/Stutchbury/EncoderButton
-#include <EncoderButton.h>
-#define ENCODER_A   (A3)
-#define ENCODER_B   (A4)
-#define ENCODER_BUT (A5)
-EncoderButton uiButton(ENCODER_A, ENCODER_B, ENCODER_BUT);
-void onUiButtonHandler(EncoderButton& eb);
-void onUiButtonLongPress(EncoderButton& eb);
+#define BUTTON_UP     (A3)
+#define BUTTON_DOWN   (A4)
+#define BUTTON_ENA    (A5)
+#define UI_TASK_ENCODER (100)
 void uiEncoderCallback();
 
 
@@ -82,13 +78,12 @@ volatile boolean uiHeaterError = false;
 // task manager
 #include <TaskScheduler.h>
 Scheduler runner;
-Task buttonTask(10, TASK_FOREVER, &uiEncoderCallback, &runner, true);
-
+// display related tasks
 Task uiCurrentTempTask(UI_TASK_CURRENT_TEMP, TASK_FOREVER, &uiDisplayCurrentTempCallback, &runner, true);  //user interface handling task
 Task uiCurrentHumidityTask(UI_TASK_CURRENT_HUMIDITY, TASK_FOREVER, &uiDisplayCurrentHumidityCallback, &runner, true);  //user interface handling task
 Task uiCurrentSetPointTask(UI_TASK_CURRENT_SETPOINT, TASK_FOREVER, &uiDisplayCurrentSetPointCallback, &runner, true);  //user interface handling task
 Task uiDisplayDebugTask(UI_TASK_DEBUG_DATA, TASK_FOREVER, &uiDisplayDebugDataCallback, &runner, true);  //user interface handling task
-
+// hardware interface related tasks
 Task sensorTask(SENSOR_TASK_TIMER, TASK_FOREVER, &sensorReadCallback, &runner, true); // read sensors
 Task controlTask(CONTROL_TASK_TIMER, TASK_FOREVER, &tempControlCallback, &runner, true); // control heaters and alarms
 Task motorTask(MOTOR_TASK_TIMER, TASK_FOREVER, &motorControlCallback, &runner, true); // control egg movement motor
@@ -114,9 +109,9 @@ void setup() {
   dht_env.begin();
 
   // configure encode button
-  uiButton.setEncoderHandler(onUiButtonHandler);
-  uiButton.setLongPressHandler(onUiButtonLongPress, false);
-  uiButton.enable();
+  pinMode(BUTTON_UP,INPUT_PULLUP);
+  pinMode(BUTTON_DOWN,INPUT_PULLUP);
+  pinMode(BUTTON_ENA,INPUT_PULLUP);
   
 
   // start the display
@@ -150,11 +145,6 @@ void loop() {
   // task sched 
   runner.execute();
 }
-
-void uiEncoderCallback() {
-  uiButton.update();
-}
-
 
 //update sensor data
 void sensorReadCallback() {
@@ -281,7 +271,7 @@ void uiDisplayCurrentHumidityCallback() {
 
 void uiDisplayCurrentSetPointCallback() {
   // and now display the set temperature
-  tft.setCursor(10, 125);
+  tft.setCursor(10, 120);
   tft.setTextColor(ST77XX_WHITE, ST77XX_BLACK);
   tft.setTextSize(3);
   tft.print("TEMP. DORITA ");
