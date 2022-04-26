@@ -1,4 +1,4 @@
- // general libraries
+// general libraries
 #include <SPI.h>
 
 
@@ -41,11 +41,11 @@ void sensorReadCallback();
 #define HEATER_2  (A1)
 #define TEMP_LOW_HISTEREZIS  ((float)0.0)
 #define TEMP_HIGH_HISTEREZIS  ((float)0.1)
-#define TEMP_COLD_LIMIT       ((float)37.0)
-#define TEMP_WARM_LIMIT       ((float)38.0)
+#define TEMP_COLD_LIMIT       ((float)38)
+#define TEMP_WARM_LIMIT       ((float)45)
 #define HEATER_MAX_TEMP  ((float)50)
 #define LOW_TEMP_ALARM_LIMIT ((float)
-volatile float tempSetPoint=37.5;
+volatile float tempSetPoint=42;
 #define CONTROL_TASK_TIMER  (1000)  //it's a slow process, so no hurry
 void tempControlCallback();
 
@@ -128,19 +128,6 @@ void setup() {
 
 
 
-void onUiButtonHandler(EncoderButton& eb) {
-  Serial.print("eb1 incremented by: ");
-  Serial.println(eb.increment());
-  Serial.print("eb1 position is: ");
-  Serial.println(eb.position());
-}
-
-void onUiButtonLongPress(EncoderButton& eb) {
-  Serial.print("button1 longPressCount: ");
-  Serial.println(eb.longPressCount());
-}
-
-
 void loop() {
   // task sched 
   runner.execute();
@@ -175,8 +162,8 @@ void tempControlCallback() {
         digitalWrite(HEATER_1,LOW);
       }
       
-      uiHeaterOverTemp = (env_temperature > TEMP_WARM_LIMIT);
-      uiHeaterUnderTemp = (env_temperature <TEMP_COLD_LIMIT);
+      uiHeaterOverTemp = (env_temperature > (tempSetPoint+TEMP_HIGH_HISTEREZIS));
+      uiHeaterUnderTemp = (env_temperature < (tempSetPoint-TEMP_LOW_HISTEREZIS));
     }
   }
 
