@@ -1,0 +1,3 @@
+(fp_lib_table
+  (lib (name incubatorController)(type KiCad)(uri ${KIPRJMOD}/incubatorController.pretty)(options "")(descr ""))
+)
