@@ -1,0 +1,12 @@
+use RTOS tasks
+on core0:
+	- USB handler by default
+	- UI la 100mS, low prio
+	- BUZZER cu timing variabil, low prio
+	- loop - display & buttons
+
+on core1:
+	- motorControl la 60000mS low prio
+	- DHT read la 1000mS TOP prio
+	- PID loop dupa DHT_READ - prin semafor, high prio
+	- ADC_READ la 10000mS, low prio
